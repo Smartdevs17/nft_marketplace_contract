@@ -26,6 +26,18 @@ describe("NFTMarketplace", function () {
             const balance = await nftMarketplace.balanceOf(owner.address);
             expect(balance).to.equal(1);
         });
+
+        it("Should set the correct tokenURI", async function () {
+            await nftMarketplace.connect(owner).mintNFT("tokenURI", ethers.parseEther("10"));
+            const tokenURI = await nftMarketplace.tokenURI(1);
+            expect(tokenURI).to.equal("tokenURI");
+        });
+
+        it("Should set the correct price", async function () {
+            await nftMarketplace.connect(owner).mintNFT("tokenURI", ethers.parseEther("10"));
+            const price = await nftMarketplace.getNFTPrice(1);
+            expect(price).to.equal(ethers.parseEther("10"));
+        });
     });
 
     describe("Listing", function () {
@@ -35,6 +47,12 @@ describe("NFTMarketplace", function () {
             const listing = await nftMarketplace.getListing(1);
             expect(listing.price).to.equal(ethers.parseEther("1"));
         });
+
+        it("Should not allow listing an NFT for sale with a zero price", async function () {
+            await nftMarketplace.connect(owner).mintNFT("tokenURI", ethers.parseEther("10"));
+            await expect(nftMarketplace.connect(owner).listNFTForSale(1, ethers.parseEther("0"))).to.be.revertedWith("Price must be greater than zero");
+        });
+
     });
 
     describe("Buying", function () {
@@ -45,6 +63,18 @@ describe("NFTMarketplace", function () {
             const newOwner = await nftMarketplace.ownerOf(1);
             expect(newOwner).to.equal(addr1.address);
         });
+
+        it("Should not allow buying an NFT with insufficient funds", async function () {
+            await nftMarketplace.connect(owner).mintNFT("tokenURI", ethers.parseEther("10"));
+            await nftMarketplace.connect(owner).listNFTForSale(1, ethers.parseEther("1"));
+            await expect(nftMarketplace.connect(addr1).buyNFT(1, { value: ethers.parseEther("0.5") })).to.be.revertedWith("Incorrect price");
+        });
+
+        it("Should not allow buying an NFT that is not for sale", async function () {
+            await nftMarketplace.connect(owner).mintNFT("tokenURI", ethers.parseEther("10"));
+            await expect(nftMarketplace.connect(addr1).buyNFT(1, { value: ethers.parseEther("1") })).to.be.revertedWith("This NFT is not for sale");
+        });
+
     });
 
     describe("Withdrawing", function () {
@@ -65,7 +95,6 @@ describe("NFTMarketplace", function () {
             const gasCost = gasUsed * gasPrice;
         
             const finalBalance = await ethers.provider.getBalance(owner.address);
-            console.log("initialBalance", initialBalance);
             // Now, ensure the final balance is greater after accounting for the gas cost
             expect(finalBalance).to.equal(initialBalance - BigInt(gasCost));
         });
